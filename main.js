@@ -139,6 +139,7 @@ class Wall {
 		this.end = end
 		this.wall = ops.difference(this.end, this.start)
 		this.direction = ops.unit(this.wall)
+		this.normal = new Vector(-this.direction.y, this.direction.x)
 		this.length = ops.magnitude(this.wall)
 		particles.push(new Particle(anchorSize, this.start, new Vector(0, 0), 1, true))
 		particles[particles.length - 1].display()
@@ -154,47 +155,63 @@ class Wall {
 		// ellipse(this.start.x, this.start.y, this.end.x - this.start.x, this.end.y - this.start.y)
 	}
 	bounce(particle) {
-		// console.log("bouncing", particle)
 		if (particle.rigid) return
-		if (particle.lastcontact === this) return
-		let P = ops.difference(particle.position, this.start) // wall frame
-		let projection = ops.project(P, this.wall, true)
-		let normal = ops.difference(ops.project(P, this.wall, true), P)
-		if (ops.magnitude(normal) < particle.radius) {
-			const correction = ops.scale(
-				ops.unit(normal),
-				ops.magnitude(normal) - particle.radius
-			)
-			particle.position.add(correction)
-			const delta = ops.dot(particle.velocity, ops.unit(normal))
-			if (delta > 0) {
-				particle.velocity.sub(ops.scale(ops.unit(normal), 2 * delta)
-				)
+		let left = Math.min(particle.ghost.x, particle.position.x)
+		let right = Math.max(particle.ghost.x, particle.position.x)
+		let top = Math.min(particle.ghost.y, particle.position.y)
+		let bottom = Math.max(particle.ghost.y, particle.position.y)
+		let minX = Math.min(this.start.x, this.end.x)
+		let maxX = Math.max(this.start.x, this.end.x)
+		let minY = Math.min(this.start.y, this.end.y)
+		let maxY = Math.max(this.start.y, this.end.y)
+		if (right < minX - particle.radius || left > maxX + particle.radius) return //bounding box
+		if (bottom < minY - particle.radius || top > maxY + particle.radius) return
+
+		// place crossing particles back on the side they started from
+		let crossing = ops.intersect(particle.ghost, particle.position, this.start, this.end, true)
+		if (crossing) {
+			let ghostPos = ops.difference(particle.ghost, this.start)
+			let ghostSide = ops.cross(this.wall, ghostPos)
+			let currentPos = ops.difference(particle.position, this.start)
+			let side = ghostSide > 0 ? 1 : (ghostSide < 0 ? -1 : (ops.dot(currentPos, this.normal) > 0 ? -1 : 1))
+			let distance = ops.dot(currentPos, this.normal)
+			let correction = ops.scale(this.normal, distance - side * particle.radius)
+			particle.position.sub(correction)
+			let velocityIntoWall = ops.dot(particle.velocity, this.normal) * side
+			if (velocityIntoWall < 0) {
+				let delta = ops.scale(this.normal, 2 * ops.dot(particle.velocity, this.normal))
+				particle.velocity.sub(delta)
 			}
 			particle.lastcontact = this
 			return
 		}
-		if (!ops.intersect(particle.position, ops.sum(particle.position, particle.velocity), this.start, this.end)) return
-		P = ops.difference(particle.position, this.start) // wall frame
-		normal = ops.difference(ops.project(P, this.wall, false), P)
-		let G = ops.sum(P, particle.velocity) // ghost
-		let apexP = ops.sum(P, ops.scale(ops.unit(normal), particle.radius)) // apex point
-		let apexG = ops.sum(G, ops.scale(ops.unit(normal), particle.radius))
-		if (ops.cross(apexG, this.wall) * ops.cross(apexP, this.wall) <= 0) {
-			// console.log("collided", apexG, Pa, n, ops.cross(Ga, this.wall), ops.cross(Pa, this.wall))
-			// let GTFPs = ops.sum(apexG, ops.scale(n, -2))
-			let apexGNormal = ops.difference(
-				ops.project(apexG, this.wall, false),
-				apexG
-			)
-			let prediction = ops.sum(this.start, ops.sum(G, ops.scale(apexGNormal, 2))) // world frame from wall frame
-			particle.position = prediction
-			if (!particle.rigid) particle.velocity.add(ops.scale(ops.project(particle.velocity, normal), -2)) //reflect v
-			// console.log(" True ghost 	future position", prediction, "future velocity", FutureVelocity)
-			particle.lastcontact = this
-			particle.skipnext = true
+
+		// push resting particles back to wallsurface surface
+		let P = ops.difference(particle.position, this.start)
+		let nearest = ops.project(P, this.wall, true)
+		let towardWall = ops.difference(nearest, P)
+		let distance = ops.magnitude(towardWall)
+		if (distance >= particle.radius) return
+
+		let normal
+		if (distance > 1e-9) {
+			normal = ops.unit(towardWall)
+			normal = ops.scale(normal, -1)
+		} else {
+			let ghostP = ops.difference(particle.ghost, this.start)
+			let side = ops.cross(this.wall, ghostP) >= 0 ? 1 : -1
+			if (ops.cross(this.wall, P) > 0) side = 1
+			normal = ops.scale(this.normal, side)
 		}
 
+		let correction = ops.scale(normal, particle.radius - distance)
+		particle.position.add(correction)
+		let velocityIntoWall = ops.dot(particle.velocity, normal)
+		if (velocityIntoWall < 0) {
+			let delta = ops.scale(normal, 2 * velocityIntoWall)
+			particle.velocity.sub(delta)
+		}
+		particle.lastcontact = this
 	}
 }
 
@@ -209,7 +226,7 @@ class Particle {
 		this.velocity = velocity
 		this.trail = trail
 		this.lastcontact = null
-		this.skipnext = false
+		this.ghost = new Vector(position.x, position.y)
 	}
 	display() {
 		if (typeof noStroke !== 'function') return
@@ -261,10 +278,10 @@ class Particle {
 		)
 		let hyp = ops.magnitude(difference)
 
-		if (hyp === 0) { // prevent superposition
-			difference = new Vector(Math.random() - 0.5, Math.random() - 0.5)
-			hyp = ops.magnitude(difference)
-		}
+		// if (hyp === 0) { // prevent superposition
+		// 	difference = new Vector(Math.random() - 0.5, Math.random() - 0.5)
+		// 	hyp = ops.magnitude(difference)
+		// } /// RECONSIDER for wall crash
 
 		let overlap = (hyp - (this.radius + other.radius)) / 2
 		if (overlap < 0) {
@@ -299,9 +316,11 @@ class Grid {
 	constructor(cellsize) {
 		this.cellsize = cellsize
 		this.map = new Map()
+		console.log(cellsize)
 	}
 	clear() {
 		this.map.clear()
+		console.log(cellsize)
 	}
 	getKey(x, y) {
 		const cx = Math.floor(x / this.cellsize)
@@ -315,21 +334,27 @@ class Grid {
 		}
 		this.map.get(key).push(particle)
 	}
-	getNearby(particle) {
-		const cx = Math.floor(particle.position.x / this.cellsize)
-		const cy = Math.floor(particle.position.y / this.cellsize)
-		const neighbors = []
-		for (let x = -1; x <= 1; x++) {
-			for (let y = -1; y <= 1; y++) {
-				const key = `${cx + x},${cy + y}`
-				if (this.map.has(key)) {
-					neighbors.push(...this.map.get(key))
+		getNearby(particle) {
+			const cx = Math.floor(particle.position.x / this.cellsize)
+			const cy = Math.floor(particle.position.y / this.cellsize)
+			const vstepx = Math.floor(particle.velocity.x / this.cellsize)
+			const vstepy = Math.floor(particle.velocity.y / this.cellsize)
+			const lowerx = Math.min(vstepx, -1)
+			const upperx = Math.max(1, vstepx)
+			const lowery = Math.min(vstepy, -1)
+			const uppery = Math.max(1, vstepy)
+			const neighbors = []
+			for (let x = lowerx; x <= upperx; x++) {
+				for (let y = lowery; y <= uppery; y++) {
+					const key = `${cx + x},${cy + y}`
+					if (this.map.has(key)) {
+						neighbors.push(...this.map.get(key))
+					}
 				}
 			}
+			return neighbors;
 		}
-		return neighbors;
 	}
-}
 
 // Initialize a global grid with a cell size of 80 pixels
 
@@ -384,6 +409,15 @@ function triangulate(colliders, contraints) {
 	// }
 
 	handleEmitters(colliders)
+
+
+	for (let i = 0; i < colliders.length; i++) { // save pos at start
+		const c = colliders[i]
+		if (c.rigid) continue
+		c.ghost.x = c.position.x
+		c.ghost.y = c.position.y
+	}
+
 	for (let i = 0; i < colliders.length; i++) {
 		contraints.forEach((constraint) => {
 			constraint.bounce(colliders[i])
@@ -392,11 +426,10 @@ function triangulate(colliders, contraints) {
 
 	for (let i = 0; i < colliders.length; i++) {
 		if (colliders[i].rigid) continue
-		if (colliders[i].skipnext) { colliders[i].skipnext = false; continue }
 		colliders[i].move()
 	}
 	if (toRemove.length) {
-		const removeSet = new Set(toRemove) // using temp list to not mutate colliders when  iterating
+		const removeSet = new Set(toRemove) // using temp list to not mutate colliders when iterating
 		for (let i = colliders.length - 1; i >= 0; i--) {
 			if (removeSet.has(colliders[i])) colliders.splice(i, 1)
 		}
@@ -419,10 +452,18 @@ function triangulate(colliders, contraints) {
 			}
 		}
 	}
-	for (let i = 0; i < colliders.length; i++) {
-		contraints.forEach((constraint) => {
-			constraint.bounce(colliders[i])
-		})
+	// Repeat final wall passes so a particle pushed through a corner is resolved again
+	for (let pass = 0; pass < 3; pass++) {
+		let changed = false
+		for (let i = 0; i < colliders.length; i++) {
+			const c = colliders[i]
+			const bx = c.position.x, by = c.position.y
+			contraints.forEach((constraint) => {
+				constraint.bounce(c)
+			})
+			if (c.position.x !== bx || c.position.y !== by) changed = true
+		}
+		if (!changed) break
 	}
 
 	for (let i = 0; i < colliders.length; i++) {
@@ -670,8 +711,14 @@ function applyConstraint(particle, constraint, axis, wrapTarget) {
 	}
 	if (constraint === "reflect") {
 		particle.velocity[axis] = -particle.velocity[axis]
+		// Avoid treating the reflected position as a new frame-long movement
+		particle.ghost.x = particle.position.x
+		particle.ghost.y = particle.position.y
 	} else if (constraint === "wrap") {
 		particle.position[axis] = wrapTarget
+		// The wrapped position is the current position, not a crossing this frame
+		particle.ghost.x = particle.position.x
+		particle.ghost.y = particle.position.y
 	} else if (constraint === "absorb") {
 		toRemove.push(particle)
 	}
