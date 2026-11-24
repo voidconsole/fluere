@@ -1,15 +1,15 @@
-# [Fluid Engine](https://voidconsole.github.io/fluid-sim/)
+# [Fluid Engine](https://voidconsole.github.io/fluere/)
 
 this project is an experiment to explore the quite fundamental question in computational physics: can complex, global fluid behaviors emerge solely from simple, localized collision laws?
 
 most fluid simulations rely on the navier-stokes equations, complex partial differential equations that describe fluid motion as a continuum. this engine takes the opposite approach. there are no pressure solvers, no viscosity constants, and no differential equations. instead, it uses high-fidelity, discrete particle-to-particle collision math written from scratch.
 
 the result is a successful proof-of-concept: phenomena such as vorticity, pressure gradients, and thermal diffusion emerge naturally from the bottom-up.
-[check it out!](https://voidconsole.github.io/fluid-sim/)
+[check it out!](https://voidconsole.github.io/fluere/)
 
 
 find videos, simulations, tests and failures [here](https://drive.google.com/drive/folders/1ESwztzcPn9aTRWIODQ-dJw75UBhIh-h9?usp=sharing). 
-find complete development journal [here](https://github.com/voidconsole/fluid-sim/journal.md)
+find complete development journal [here](https://github.com/voidconsole/fluere/journal.md)
 
 ## hypothesis
 

@@ -1,16 +1,20 @@
 ## Fluid Engine Issues
 
-November 13 2026 4:51AM
 
-Finally, I am optimising the fluid engine because this was long due and I finally use the quadtree hash mapping. Essentially, I divide the whole page into cells and perform modular arithmetic, converting the X and Y coordinates of each particle into a grid cell coordinates and only comparing against its neighboring cells, which heavily optimizes it even though making these array maps and deleting them in every layer is some extra overhead. One of the things we have to take care of is the cell size. I set up a buffer that checks against the largest particle and then multiplies it by a factor I call buffer. Based on that factor, it computes the cell size `particlesize * buffer= cellsize`. Based on the cell size, you assign the grid cells. All of this is handled by a new class called Grid. For every cell you get its neighboring cells and then only check collisions for all of the particles within them. That was about it. So it compares against every particle in the particle generator and picks the largest as the particle size. However this failed for emitter based simulations because they had no fixed particle set at start. So I added another condition that if it has a emitter then check against its particle generator function's particle size. Additionally, this approach breaks down the tunneling I spent so long trying to fix, because if a particle is too fast it skips right past a cell and it becomes meaningless.
+## optimizing fluid engine via a spatial map
+Date: 13 November 2026 4:51AM
+
+Finally, I am optimizing the fluid engine because this was long due and I finally use the quadtree hash mapping. Essentially, I divide the whole page into cells and perform modular arithmetic, converting the X and Y coordinates of each particle into a grid cell coordinates and only comparing against its neighboring cells, which heavily optimizes it even though making these array maps and deleting them in every layer is some extra overhead. One of the things we have to take care of is the cell size. I set up a buffer that checks against the largest particle and then multiplies it by a factor I call buffer. Based on that factor, it computes the cell size `particlesize * buffer= cellsize`. Based on the cell size, you assign the grid cells. All of this is handled by a new class called Grid. For every cell you get its neighboring cells and then only check collisions for all of the particles within them. That was about it. So it compares against every particle in the particle generator and picks the largest as the particle size. However this failed for emitter based simulations because they had no fixed particle set at start. So I added another condition that if it has a emitter then check against its particle generator function's particle size. Additionally, this approach breaks down the tunneling I spent so long trying to fix, because if a particle is too fast it skips right past a cell and it becomes meaningless.
 This is an edge case I'll have to work on so until then I'm keeping this new code in legacy.
 
 
 
 ## tested a few images
-_Fri, Nov 6, 01:22 AM_
+Date: 5 November 2026 to 6 November 2026
 
-**voidconsole · November 5, 2026**
+_Fri, 6 November 2026, 01:22 AM_
+
+**voidconsole · 5 November 2026**
 
 ![Image](https://github.com/user-attachments/assets/93fc1f41-86ea-4c97-9992-e83cc41576d4)
 
@@ -23,6 +27,7 @@ _Fri, Nov 6, 01:22 AM_
 ---
 
 ## svg path rendering in fluid engine
+Date: 22 September 2026
 
 so since the walls were done, what i sought to do is create use an svg path, get path length, get points on that path, and draw walls on each point of that path, separated by a specified pathdensity variable, offset to whatever position required.
 
@@ -68,7 +73,7 @@ if (ultimate) {
 ---
 
 
-**voidconsole · September 22, 2026**
+**voidconsole · 22 September 2026**
 
 i made the walls fine and added anchors to each segment of the path and made the settings controllable through code and the UI, to change the path offsets, rotation and size, and added them to the UI in b52111c.
 
@@ -263,6 +268,7 @@ function loadWorldSvgShape(world) {
 ---
 
 ## experimented with walls
+Date: 20 September 2026
 
 as soon as i added the walls feature i tried out new experiments with walls, mainly with a slow moving collection of particles coming from the left, pushed into a funnel or a pipe or a airfoil (handdrawn for now), and i was extremely delighted to see atleast the qualitative effects of pressure, velocity, continuity and hints of bernoulli's principle causing particles to speed up in a nozzle whilst building up pressure inside.
 probably the most beautiful things ive seen all month.
@@ -283,6 +289,7 @@ probably the most beautiful things ive seen all month.
 ---
 
 ## adding anchors to walls and reduced tunneling
+Date: 27 August 2026
 
 the only things left to do with the walls is resolving the tunnels at intersections and endpoints.
 an easy fix, i thought was to add particles with infinite mass on each end and at each intersection, behaving like rigid anchors.
@@ -359,14 +366,15 @@ function populateIntersections(newWall) {
 in the later versions i removed the 3 to be a global anchor size, so i can adjust it at once. because a large size might alter the behavior of a smooth wall altogether, but a smaller size will let fast particles tunnel through.
 
 for the rare tunneling of particles through the walls, i noticed that in wall collisions i already move the particle, but forgot to skip the turn to move() in triangulate(). so i tried a clean solution of using a condition to see if the particle's lastcontact is an instanceof Wall, which clearly failed because it wouldnt skip for just 1 turn. so i turned to the more messy way of having a skipstep flag and setting it true and false between walls and triangulate. certainly, this reduced a lot of tunneling.
-continuing on #135 and #140, i tried to implement using lastpos, but then i realized i again had to change the order, because lastpos would be the position on the previous try, not in the future, and that would mean correcting AFTER the particle has tunneled through. though i did notice all tunneling had stopped, the particles started teleporting to a place, which i think had to do with the placing of normal, and the order of operations in triangulate.
+continuing on [#135](https://github.com/voidconsole/dimensionless/issues/135) and [#140](https://github.com/voidconsole/dimensionless/issues/140), i tried to implement using lastpos, but then i realized i again had to change the order, because lastpos would be the position on the previous try, not in the future, and that would mean correcting AFTER the particle has tunneled through. though i did notice all tunneling had stopped, the particles started teleporting to a place, which i think had to do with the placing of normal, and the order of operations in triangulate.
 i rolled back, for i should work on the svg wall segmentation, than spend time on an almost solved problem. i can optimize this later, and I don't think the little tunneling will cause problems in airfoil tests or other experiments.
 
 ---
 
 ## deciding to stick with sequential solver but with a modified algorithm
+Date: 26 August 2026
 
-switching the wall algorithm to the simultaneous solver in #133 seems harder to implement than previously thought, perhaps might bring more problems than it solves.
+switching the wall algorithm to the simultaneous solver in [#133](https://github.com/voidconsole/dimensionless/issues/133) seems harder to implement than previously thought, perhaps might bring more problems than it solves.
 for particle-particle collisions, it creates a more jumpy jittery motion in crowded regions, which i think is because of accumulation of dp caused by backoffs and applying them all at once.
 
 even for the wall-particle collisions, it performed worse than the updated sequential solver with the orientation implementation and clamps. more particles tunneled through, with more jittery motion.
@@ -378,6 +386,7 @@ there can be a way to fix the little tunneling in the sequential solver, which o
 ---
 
 ## intersection of lines for collision detection
+Date: 25 August 2026
 
 i realized i had overlooked initially how I would handle line segment collisions, i just computed the projections and checked if they were outside bounds. but clearly, that does not work, because a particle and its ghosts' projection can be both beyond bounds, but still might have passed a wall. the only way to know for sure, is by checking if there is an intersection of the wall vector and the vector drawn from a particle to its ghost.
 
@@ -425,9 +434,10 @@ this also makes sure there is a collision, eliminating the need for checking wit
 
 ---
 
-## fixed tunnelling of walls in fluid engine
+## fixed tunnelling of walls in fluid engine (for fast moving particles)
+Date: 20 August 2026 to 27 August 2026
 
-so one of the issues with the earlier model (#87) was that the normal was drawn from the particle's center, and thus there was a discrepancy in collision handling. this issue wasn't there in the cross product algorithm because it already accounted for the radius.
+so one of the issues with the earlier model ([#87](https://github.com/voidconsole/dimensionless/issues/87)) was that the normal was drawn from the particle's center, and thus there was a discrepancy in collision handling. this issue wasn't there in the cross product algorithm because it already accounted for the radius.
 
 to solve this issue,i scaled the normal's length to the radius, added it to the particle's position, and this new vector i call the 'apex' point, which is the first particle that touches the wall.
 
@@ -446,7 +456,7 @@ I sat down and derived the whole thing in physics and code on paper, now whats l
 
 
 
-**voidconsole · August 20, 2026**
+**voidconsole · 20 August 2026**
 
 Today I tested this algorithm, and physics never fails me
 
@@ -484,7 +494,7 @@ as in i calculated the normal for the position from the initial position, and no
 
 https://github.com/user-attachments/assets/f10fa7b6-06bc-4dbf-8b57-066f03218332
 
-another problem that arose was that the particle kept oscillating a wall like in #87 which should not happen at all, because the particle must never cross the wall. It was a silly bug, i found it before i thought i using the last contact way to explicitly prevent it. the positon.add(N) and position = sum(position, N) are not the same and thus the bug
+another problem that arose was that the particle kept oscillating a wall like in [#87](https://github.com/voidconsole/dimensionless/issues/87) which should not happen at all, because the particle must never cross the wall. It was a silly bug, i found it before i thought i using the last contact way to explicitly prevent it. the positon.add(N) and position = sum(position, N) are not the same and thus the bug
 
 the particle and its apex and their ghost counterparts:
 
@@ -492,9 +502,9 @@ the particle and its apex and their ghost counterparts:
 
 ![Image](https://github.com/user-attachments/assets/c76a30e6-2098-4e32-b553-92971695eb11)
 
-**voidconsole · August 20, 2026**
+**voidconsole · 20 August 2026**
 
-an issue with this was that it did not account for multiparticle systems, when it gets crowded, particles push against the wall, and when the backoff of the particles move the walls across the boundary, it does not trigger a collision, because of order of resolution. this could be solved by using the method in #133 but I solved it using the radius distance based collisions as with the old algorithm
+an issue with this was that it did not account for multiparticle systems, when it gets crowded, particles push against the wall, and when the backoff of the particles move the walls across the boundary, it does not trigger a collision, because of order of resolution. this could be solved by using the method in [#133](https://github.com/voidconsole/dimensionless/issues/133) but I solved it using the radius distance based collisions as with the old algorithm
 
 ```js
 let P = ops.difference(particle.position, this.start)
@@ -514,12 +524,12 @@ if (ops.magnitude(normal) < particle.radius) {
 }
 ```
 
-another problem currently it does not work very well for intersections of walls, for fast moving particles, which again could be solved using #133.
+another problem currently it does not work very well for intersections of walls, for fast moving particles, which again could be solved using [#133](https://github.com/voidconsole/dimensionless/issues/133).
 also I did not cap the collisions to line segments yet.
 
-**voidconsole · August 25, 2026**
+**voidconsole · 25 August 2026**
 
-I finally fixed it, with the math in #136 and used
+I finally fixed it, with the math in [#136](https://github.com/voidconsole/dimensionless/issues/136) and used
 
 ```js
 project: (A, B, clamp = false) => {
@@ -547,19 +557,20 @@ there is still a little tunnelling at extremely crowded fast regions, which i th
 
 now any improvements can only made by switching to the simultaneous solver.
 
-**voidconsole · August 25, 2026**
+**voidconsole · 25 August 2026**
 
 containment at last
 
 https://github.com/user-attachments/assets/ef13a3d4-ac0e-49b9-b73a-30098aad78a2
 
-**voidconsole · August 27, 2026**
+**voidconsole · 27 August 2026**
 
-there was still the problem of tunneling through intersections and endpoints, so i solved it in #141
+there was still the problem of tunneling through intersections and endpoints, so i solved it in [#141](https://github.com/voidconsole/dimensionless/issues/141)
 
 ---
 
 ## to change collision architecture into non destructive accumulation
+Date: 30 August 2026
 
 while i was implementing my derivation for wall collisions, and had a little trouble implementing the timing of when to resolve collisions, because the particle collider handles position first and then the constraint collider which predicts a future collision, so i thought of a new approach: instead of updating velocities and positions directly in colliders, i store a dv and dp of each particle and in each iteration add that to the velocity and position directly in the move()
 
@@ -579,8 +590,7 @@ although i do like this simultaneous solver, instead of a sequential solver, but
 ---
 
 ## Inverted Projection Check Causes Particle Cohesivity in Fluid Sim
-
-Date: 2026-05-04
+Date: 4 May 2026
 
 found a very weird behaviour in my fluid sim, i just inverted the sign for
 
@@ -595,8 +605,7 @@ to ≥ which caused the particles to stick togeather, almost like exhibiting coh
 ---
 
 ## Tried to fix tunnelling in fluid engine with prediction computation
-
-Date: 24-07-2026
+Date: 24 July 2026
 
 After switching to cross products, I added backoff to the walls like I did with particles, hoping it would solve the tunneling issue.
 Certainly, it solved the trespassing of slow moving particles, and incredibly use for Crystal lattice as now one could draw walls and constrain the particles within that structure, and watch them rearrange to best fill the space.
@@ -666,8 +675,7 @@ so the resolution lies in my hands, and i shall derive this soon enough from pur
 ---
 
 ## Wall Collisions via 2D Cross Product Instead of Projection
-
-Date: 2026-07-01
+Date: 1 July 2026
 
 fluid engine: just realized that there is a “2D” cross product which is essentially the magnitude of the cross of two vectors, and instead of using the projection and triangle inequality for a wall collision, i simply see if the magnitude of this cross is less than or equal to the radius of the particle i.e if the thing is touching it or not. this also simplifies the problem of determining which side of the wall a normal is drawn to.
 
@@ -700,8 +708,7 @@ if (Math.abs(perpendicular) <= particle.radius) {
 ---
 
 ## Implementing Rigid Wall Collisions in Fluid Sim via Projections
-
-Date: 2026-06-29
+Date: 29 June 2026
 
 fluid engine: was trying to implement walls in my fluid sim, so my first thought was to create a wall (line) defined by a start and end vector, and compute the relative position of the end and a particle from the start.
 
@@ -735,13 +742,12 @@ bounce(particle){
 
 for the fps reason though, i need to add backoffs, to avoid overlapping and cant help particles moving too fast as they will trespass the wall this way.
 
-_🌌 Systems/Fluid Engine · Mon, Jun 29, 11:20 PM_
+_🌌 Systems/Fluid Engine · Mon, 29 June 2026, 11:20 PM_
 
 ---
 
 ## Rendering Particle Velocity Vectors in Fluid Sim
-
-Date: 2026-06-16
+Date: 16 June 2026 to 11 August 2026
 
 added a trail parameter to particle generator to show velocity vectors
 
@@ -762,15 +768,14 @@ also, while experimenting accidentally created mesmerizing 'modern art'.
 ![image.png](https://cdn.jsdelivr.net/gh/voidconsole/assets/2026/legacy/image%207.png)
 
 
-**voidconsole · August 11, 2026**
+**voidconsole · 11 August 2026**
 
 https://github.com/user-attachments/assets/a251674b-4b69-4b40-b668-907295a77a23
 
 ---
 
 ## Hexagonal Lattice Formation and Vacancy Defects in Fluid Sim
-
-Date: 2026-06-15
+Date: 15 June 2026
 
 i just realized i could also simulate microscopic crystalline structures using my fluid sim.
 
@@ -797,9 +802,7 @@ heres an example of it stabilizing over time
 ---
 
 ## Deriving Mass-Weighted Particle Collisions via Harmonic Mean
-
-Date: 2026-06-14
-
+Date: 14 June 2026
 ---
 
 i was trying to add mass constraints to my particle fluid simulator, which had initially assumed equal masses for all particles were identical. that was very fun to play with. but now i felt it needed more capabilities. i wanted to add custom SVGs to the site and let the particles collide with that svg’s contours.
@@ -890,10 +893,5 @@ Future Updates:-
 - Adding tunable properties like cohesiveness and following bernoulli's principles, to mimic SPH (Smoothened particle hydrodynamics)
 
 5:56PM, 14 June 2026
-
-
-
-
-**voidconsole · November 10, 2026**
 
 colliding 2 particles with infinite mass produces NaN
